@@ -169,7 +169,7 @@ class Poisoner:
 			while True:
 				send(self.PKT_poison_1)
 				send(self.PKT_poison_2)
-				# time.sleep(self.ARP_SEND_DELAY)
+				time.sleep(self.ARP_SEND_DELAY)
 			
 		except KeyboardInterrupt:
 			# Unpoison if Ctrl-C 
