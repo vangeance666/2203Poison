@@ -1,8 +1,8 @@
 # Rat Poison
-Self-made ARP poisoning tool.
-Stealthy.
-RFC 5527 Compliant
-capable of vlan double tagging + arp poison
+Self-made ARP poisoning tool. <br/>
+Stealthy.<br/>
+RFC 5527 Compliant.<br/>
+capable of vlan double tagging + arp poison.<br/>
 
 ## Team Members
 Patrick Kang Wei Sheng <br/>
