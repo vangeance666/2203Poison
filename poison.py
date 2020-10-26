@@ -304,8 +304,8 @@ class Poisoner:
 			#  Start poisoining
 			print("[*] Starting Normal Poisoning...")
 			while True:				
-				send(self.PKT_poison_1)
-				send(self.PKT_poison_2)
+				send(self.PKT_poison_1, verbose=False)
+				send(self.PKT_poison_2, verbose=False)
 
 				# Abide to RFC
 				time.sleep(self.ARP_SEND_DELAY)
@@ -324,24 +324,24 @@ class Poisoner:
 		"""
 		if type == 2:			
 			for i in range(3):
-				send(self.PKT_unpoison_1)
-				send(self.PKT_unpoison_2)
+				send(self.PKT_unpoison_1, verbose=False)
+				send(self.PKT_unpoison_2, verbose=False)
 
 			for i in range(3):
-				sendp(self.PKT_unpoison_1)
-				sendp(self.PKT_unpoison_2)
+				sendp(self.PKT_unpoison_1, verbose=False)
+				sendp(self.PKT_unpoison_2, verbose=False)
 
 	def run_vlan_poison(self, target_mac, monitor_mac, gateway_mac):
 		"""ARP Poison mode 2, whihc includes VLAN hopping
 		functionality through double tagging
 		
 		Args:
-		    target_mac (TYPE): Description
-		    monitor_mac (TYPE): Description
-		    gateway_mac (TYPE): Description
+		    target_mac (str): Target's MAC Address
+		    monitor_mac (str): Monitoring PC's MAC Address
+		    gateway_mac (str): Gateway/Target2's MAC Address
 		
 		Returns:
-		    TYPE: Description
+		    int: Return finished Code
 		"""
 		self._generate_poison_packets(target_mac, monitor_mac, gateway_mac)
 		self._generate_unpoison_packets(target_mac, monitor_mac, gateway_mac)
@@ -349,14 +349,13 @@ class Poisoner:
 		self.double_tag_poison_packets()
 		self.double_tag_unpoison_packets()
 
+
 		try:
 		#  Start poisoining
 			print("[*] Starting Double Tagged Poisoning...")
 			while True:
-				sendp(self.PKT_poison_1)
-				sendp(self.PKT_poison_2)
-				# Abide to RFC
-				time.sleep(self.ARP_SEND_DELAY)
+				sendp(self.PKT_poison_1, verbose=False)
+				sendp(self.PKT_poison_2, verbose=False)
 		
 		except KeyboardInterrupt:
 			# Unpoison if Ctrl-C 
