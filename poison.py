@@ -59,7 +59,7 @@ class StealthModule:
 			raise e
 
 	def _save_arp_tables_state(self):
-		os.system("arptables-save > %s", self.SAVE_FILE)
+		os.system("arptables-save > %s" %self.SAVE_FILE)
 
 	def _flush_arp_table_state(self):
 		os.system("arptables -F")
@@ -71,7 +71,7 @@ class StealthModule:
 
 		if self.is_blocked:
 			print("Resetting arp-tables state")
-			os.system("arptables-restore < %s", self.SAVE_FILE)
+			os.system("arptables-restore < %s" %self.SAVE_FILE)
 	
 	def __exit__(self, type, value, traceback):
 		self._reset_arp_state()
@@ -380,6 +380,9 @@ class ArgParser(argparse.ArgumentParser):
 
 	""" Simple argument parsing to cater to different funcctions
 	"""
+
+	def __init__(self):
+		self.stealth = None
 	
 	def error(self, message):
 		"""Override error function
