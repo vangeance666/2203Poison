@@ -30,15 +30,6 @@ To be used with -T, -M, -G, -TM, -MM, -GM, --vlan1, --vlan2
 ```bash
 python poison.py -PV
 ```
-Argument Usage
-Specify target's IP address: -T 192.168.10.10
-Specify monitoring PC IP address: -M 192.168.10.11
-Specify gateway/target2 IP address: -G 192.168.10.1
-Specify target's MAC address: -TM "AA:AA:AA:AA:AA:AA"
-Specify monitoring PC MAC address: -MM "BB:BB:BB:BB:BB:BB"
-Specify gateway/target2 MAC address: -GM "CC:CC:CC:CC:CC:CC"
-Specify the first Dot1Q VLAN number: --vlan1 10
-Specify the second Dot1Q VLAN number: --vlan2 20
 
 ## Attack Examples
 
